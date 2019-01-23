@@ -1,5 +1,28 @@
 # CentOS 7.2 - Oracle 18 - APEX 18c - Jasperserver - Tomcat - ORDS - httpd
 
+## DOWNLOADS
+
+### Oracle Datenbank
+- Oracle Database 18c Express Edition for  Linux x64 + 
+- Oracle Database Preinstall RPM for RHEL and CentOS Release 7: https://www.oracle.com/technetwork/database/database-technologies/express-edition/downloads/index-083047.html
+
+### Oracle Apex
+- Oracle APEX Release 18.2 All Languages: https://www.oracle.com/technetwork/developer-tools/apex/downloads/index.html
+
+### Oracle ORDS
+- Oracle REST Data Services 18.4: https://www.oracle.com/technetwork/developer-tools/rest-data-services/downloads/index.html
+
+### Tomcat
+- Apache Tomcat 9.0.14 Core: https://tomcat.apache.org/download-90.cgi
+
+### JasperReports
+- JasperReports Server CE TIB_js-jrs-cp_7.1.0_linux_x86_64.run: https://community.jaspersoft.com/project/jasperreports-server/releases
+- Jaspersoft Studio 6.6.0 CE: https://community.jaspersoft.com/project/jaspersoft-studio/releases
+
+### CentOS
+- CentOS-7-x86_64-Minimal-1804: http://isoredirect.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1810.iso
+
+
 ## CENTOS INSTALLIEREN
 
 Here is the first tip - it is a good idea to set up a *network connection* first, bacause it'll help a bit with the further installation. Choose *Network & Host Name* in the menu, toggle the connection On and then click the Configure... button in the right bottom corner, here choose IPv4 Settings tab and now you're able to choose **DHCP** or add a **static IP address** if needed.
@@ -35,6 +58,11 @@ und der Aufruf des Installers:
     /media/cdrom/VBoxLinuxAdditions.run
 
 ### VORBEREITUNG DER INSTALLATION
+
+Up to 12 GB of user data
+Up to 2 GB of database RAM
+Up to 2 CPU threads
+Up to 3 Pluggable Databases
 
 #### SWAP
 
