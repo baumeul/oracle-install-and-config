@@ -2,25 +2,25 @@
 
 ## DOWNLOADS
 
-### Oracle Datenbank
-- Oracle Database 18c Express Edition for  Linux x64 + 
-- Oracle Database Preinstall RPM for RHEL and CentOS Release 7: https://www.oracle.com/technetwork/database/database-technologies/express-edition/downloads/index-083047.html
+- **Oracle Datenbank**
+  - Oracle Database 18c Express Edition for  Linux x64 + 
+  - Oracle Database Preinstall RPM for RHEL and CentOS Release 7: https://www.oracle.com/technetwork/database/database-technologies/express-edition/downloads/index-083047.html
 
-### Oracle Apex
-- Oracle APEX Release 18.2 All Languages: https://www.oracle.com/technetwork/developer-tools/apex/downloads/index.html
+- **Oracle Apex**
+  - Oracle APEX Release 18.2 All Languages: https://www.oracle.com/technetwork/developer-tools/apex/downloads/index.html
 
-### Oracle ORDS
-- Oracle REST Data Services 18.4: https://www.oracle.com/technetwork/developer-tools/rest-data-services/downloads/index.html
+- **Oracle ORDS**
+  - Oracle REST Data Services 18.4: https://www.oracle.com/technetwork/developer-tools/rest-data-services/downloads/index.html
 
-### Tomcat
-- Apache Tomcat 9.0.14 Core: https://tomcat.apache.org/download-90.cgi
+- **Tomcat**
+  - Apache Tomcat 9.0.14 Core: https://tomcat.apache.org/download-90.cgi
 
-### JasperReports
-- JasperReports Server CE TIB_js-jrs-cp_7.1.0_linux_x86_64.run: https://community.jaspersoft.com/project/jasperreports-server/releases
-- Jaspersoft Studio 6.6.0 CE: https://community.jaspersoft.com/project/jaspersoft-studio/releases
+- **JasperReports**
+  - JasperReports Server CE TIB_js-jrs-cp_7.1.0_linux_x86_64.run: https://community.jaspersoft.com/project/jasperreports-server/releases
+  - Jaspersoft Studio 6.6.0 CE: https://community.jaspersoft.com/project/jaspersoft-studio/releases
 
-### CentOS
-- CentOS-7-x86_64-Minimal-1804: http://isoredirect.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1810.iso
+- **CentOS**
+  - CentOS-7-x86_64-Minimal-1804: http://isoredirect.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1810.iso
 
 
 ## CENTOS INSTALLIEREN
@@ -535,6 +535,12 @@ the Tomcat service later):
 
 Done! We succeded in installing of ORDS and deploying it to Tomcat by now.
 Only one step is left.
+
+Problem in der Art:
+
+**„There are issues with the configuration of the Static Files in your environment. Please consult the _Configuring Static File Support_ section in the Application Express Installation Guide.“**
+
+habe ich behoben, indem ich erneut `@apex_rest_config.sql` habe laufen lassen.
 
 **Installation validieren**
 
