@@ -1,0 +1,457 @@
+*******************************************************************************
+*** CentOS - Oracle - APEX - jasper
+*******************************************************************************
+===============================================================================
+Parallels Tools
+===============================================================================
+Im Menü "Parallels Tools installieren" wählen
+$ ssh root@vbnn
+# mount /dev/disk/by-label/Parallels\\x20Tools /media/cdrom
+# /media/cdrom/install
+
+===============================================================================
+VORBEREITUNG
+===============================================================================
+# yum -y upgrade -y
+# yum install -y net-tools htop iotop iftop wget epel-release mc rlwrap
+# yum install -y nano vim libaio bc flex unzip
+# yum install -y java-1.8.0-openjdk.x86_64 java-1.8.0-openjdk-devel.x86_64
+$ scp apex_5.1.4.zip root@192.168.178.50:/tmp
+$ scp oracle-xe-11.2.0-1.0.x86_64.rpm.zip root@192.168.178.50:/tmp
+$ scp TIB_js-jrs-cp_6.4.2_linux_x86_64.run root@192.168.178.50:/tmp
+
+Die folgenden Schritte bis zum Abschnitt Oracle-XE stammen von dsavenko.me (http://dsavenko.me/oracledb-apex-ords-tomcat-httpd-centos7-all-in-one-guide-introduction/):
+
+*** Always use "rlwrap sqlplus" instead of just "sqlplus"
+
+*** Network time synchronization
+# systemctl start chronyd
+# systemctl enable chronyd
+
+*** Disabling SELinux on CentOS7
+change the value SELINUX=enforcing to SELINUX=disabled
+# mcedit /etc/sysconfig/selinux
+setenforce 0
+
+----------------------------------------------------------------------------------------------------------
+-- Firewall CentOS7
+----------------------------------------------------------------------------------------------------------
+-- Hilfreiche Kommandos
+# ip a s -- IP-Adresse anzeigen
+# rpm -qa | grep firewalld -- Ist Firewall installiert?
+# rpm -qc firewalld -- Konfigurationsdatei für firewalld anzeigen
+# systemctl status firewalld -- Läuft die Firewall?
+# firewall-cmd state -- dto.
+# firewall-cmd --list-all -- Was ist erlaubt?
+# firewall-cmd --get-zones --Zeige Zonen
+# firewall-cmd --get-services --Zeige Services
+-- Konfiguration Oracle/http/Jasper
+# firewall-cmd --permanent --new-service=oracle-db
+# firewall-cmd --permanent --service=oracle-db --set-short="Oracle Database Listener" --add-port=1521/tcp
+# firewall-cmd --permanent --zone=public --add-service=http
+# firewall-cmd --permanent --zone=public --add-service=https
+# firewall-cmd --permanent --zone=public --add-service=oracle-db
+# firewall-cmd --permanent --zone=public --add-service=jasper
+# firewall-cmd --reload
+
+-- Ports direkt setzen
+# firewall-cmd --add-port=1521/tcp
+# firewall-cmd --add-port=8081/tcp
+
+----------------------------------
+--- Tomcat / Apache httpd
+----------------------------------
+# yum install tomcat httpd -y
+# systemctl start tomcat
+# systemctl enable tomcat
+# systemctl start httpd
+# systemctl enable httpd
+
+===============================================================================
+ORACLE-XE
+===============================================================================
+# unzip oracle-xe-11.2.0-1.0.x86_64.rpm.zip
+# cd Disk1
+# yum localinstall oracle-xe-11.2.0-1.0.x86_64.rpm -y
+# mkdir -p /home/oracle
+# cp -a /etc/skel/. /home/oracle/
+# chown -R oracle:dba /home/oracle
+# /etc/init.d/oracle-xe configure
+-- Note that you should specify 0 as the HTTP port
+# . /u01/app/oracle/product/11.2.0/xe/bin/oracle_env.sh
+# echo '# setting oracle environment variables' >> /etc/profile.d/oracle_env.sh
+# echo '. /u01/app/oracle/product/11.2.0/xe/bin/oracle_env.sh' >> /etc/profile.d/oracle_env.sh
+
+$ rlwrap sqlplus /nolog
+-- connect to the database
+SQL> connect sys as sysdba
+-- basic query to check if everything works
+SQL> select * from dual;
+-- check components and their versions
+SQL> select comp_id, version, status from dba_registry;
+SQL> exit
+
+-------------------------------------------------------
+--- APEX 18c
+-------------------------------------------------------
+-- Deinstallation of pre-installed version of APEX
+$ cd /u01/app/oracle/product/11.2.0/xe/apex
+$ rlwrap sqlplus /nolog
+
+-- connect to the database
+SQL> connect sys as sysdba
+
+-- uninstall the preinstalled version of APEX
+SQL> @apxremov.sql
+you must exit from sqlplus after uninstall is complete
+
+-- Installation of current version of APEX
+# cd /root
+# mkdir -p /u01/apex
+# unzip apex_18.1_en.zip -d /u01/
+# chown -R oracle:dba /u01/apex
+# su - oracle
+$ cd /u01/apex
+$ rlwrap sqlplus /nolog
+
+-- installing a full development environment
+SQL> @apexins.sql SYSAUX SYSAUX TEMP /i/
+
+-- you will be disconnected after APEX is installed
+$ rlwrap sqlplus / as sysdba
+
+-- creating an instance administrator user and setting a password to them
+SQL> @apxchpwd.sql
+
+-- configure "RESTful Services" (needed to ORDS to serve workspaces and applications static files)
+SQL> @apex_rest_config.sql
+
+-- Install German Language
+SQL> @load_trans GERMAN
+
+-- disable embedded PL/SQL gateways
+SQL> exec dbms_xdb.sethttpport(0);
+SQL> exec dbms_xdb.setftpport(0);
+
+-- unlocking and setting up APEX public user, this is needed by ORDS to connect to APEX engine
+SQL> alter user apex_public_user account unlock;
+SQL> alter user apex_public_user identified by "oracle";
+
+-- now disconnect from the database
+SQL> exit
+
+-- copy APEX static files (images, stylesheets, js files and so on) to the web server directory:
+# mkdir -p /var/www/apex/images
+# cp -a /u01/apex/images/. /var/www/apex/images
+
+-------------------------------------------------------------------------------------
+-- Installation of ORDS
+-------------------------------------------------------------------------------------
+# cd /tmp
+# mkdir -p /u01/ords
+# unzip ords.18.1.1.95.1251.zip -d /u01/ords
+# cd /u01/ords
+# java -jar ords.war install advanced
+When prompted for ORDS configuration directory (the first question), enter "config"
+
+-- The Tomcat user (created as part of Tomcat install) must have write access to the /config/ folder:
+# chown -R tomcat:tomcat /u01/ords/config
+
+-- deploy ORDS to Tomcat
+cp -a /u01/ords/ords.war /usr/share/tomcat/webapps/
+
+-- Configuration of Apache httpd to map HTTP-requests to ORDS
+-- create the 10-apex.conf file in the etc/httpd/conf.d/ directory
+# vim /etc/httpd/conf.d/10-apex.conf
+-----------------------------schnipp--------------------------------------------
+# additional apache httpd configuration for apex requests proxying
+# add this to the end of /etc/httpd/conf/httpd.conf
+# or put it in a separate file such as /etc/httpd/conf.d/10-apex.conf
+
+# forward ORDS requests to tomcat
+<VirtualHost *:80>
+    # uncomment the lines below if you plan to serve different domains
+    # on this web server, don't forget to change the domain name
+    # ServerName yourdomain.tld
+    # ServerAlias www.yourdomain.tld
+
+    # alias for apex image files
+    Alias "/i" "/var/www/apex/images/"
+
+    # uncomment the line below if you want
+    # to redirect traffic to ORDS from root path
+    # RedirectMatch permanent "^/$" "/ords"
+
+    # proxy ORDS requests to tomcat
+    ProxyRequests off
+    <Location "/ords">
+        ProxyPass "ajp://localhost:8009/ords"
+        ProxyPassReverse "ajp://localhost:8009/ords"
+    </Location>
+</VirtualHost>
+-----------------------------schnipp--------------------------------------------
+
+-- Restarting the services
+# systemctl restart httpd
+# systemctl restart tomcat
+
+-------------------------------------------------------------------------------------------------
+-- you're ready to access APEX from your web browser using a link like http://yourdomain.tld/ords
+-------------------------------------------------------------------------------------------------
+
+*** Apache httpd tweaks
+
+(1) disable the default welcome page
+# rm -rf /etc/httpd/conf.d/welcome.conf
+
+(2) add an additional configuration file 0-extra.conf in the etc/httpd/conf.d/
+# vim /etc/httpd/conf.d/0-extra.conf
+------------schnipp--------------------
+# additional apache httpd configuration
+# add this to the end of /etc/httpd/conf/httpd.conf
+# or put it in a separate file such as /etc/httpd/conf.d/0-extra.conf
+# disable sensitive version info
+ServerSignature Off
+ServerTokens Prod
+# enable compression of static content
+<IfModule deflate_module>
+     SetOutputFilter DEFLATE
+     AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css text/javascript
+</IfModule>
+# enable client caching of static content
+<IfModule expires_module>
+    ExpiresActive On
+    ExpiresByType image/gif "access plus 7 days"
+    ExpiresByType image/jpeg "access plus 7 days"
+    ExpiresByType image/png "access plus 7 days"
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType text/javascript "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType application/x-javascript "access plus 7 days"
+</IfModule>
+------------schnipp--------------------
+
+*** Tomcat tweaks
+(3) edit the Tomcat service systemd unit file:
+# vim /usr/lib/systemd/system/tomcat.service
+------------schnipp-----------------------------------
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=syslog.target network.target oracle-xe.service
+Wants=oracle-xe.service
+------------schnipp-----------------------------------
+# systemctl daemon-reload
+
+*** Oracle XE tweaks
+(4) connect to the database
+$ rlwrap / as sysdba
+-- altering the default password policy (by default passwords will expire in 180 days)
+SQL> alter profile default limit password_life_time unlimited;
+
+(5) some recommended values for the parameters
+SQL> alter system set sessions=250 scope=spfile;
+SQL> alter system set processes=200 scope=spfile;
+SQL> alter system set memory_target=1G scope=spfile;
+SQL> alter system set memory_max_target=1G scope=spfile;
+SQL> alter system set job_queue_processes=100 scope=spfile;
+
+(6) creating a tablespace for our APEX workspaces
+SQL> create tablespace apex datafile '/u01/app/oracle/oradata/XE/apex.dbf' size 128M reuse autoextend on next 8M maxsize unlimited;
+
+(7) creating a schema for our APEX workspaces
+create user sn identified by "oracle" default tablespace apex temporary tablespace temp;
+alter user sn quota unlimited on apex;
+grant unlimited tablespace to sn;
+grant create session to sn;
+grant create cluster to sn;
+grant create dimension to sn;
+grant create indextype to sn;
+grant create job to sn;
+grant create materialized view to sn;
+grant create operator to sn;
+grant create procedure to sn;
+grant create sequence to sn;
+grant create snapshot to sn;
+grant create synonym to sn;
+grant create table to sn;
+grant create trigger to sn;
+grant create type to sn;
+grant create view to sn;
+
+-- restart database
+SQL> shutdown immediate
+SQL> startup
+
+*** ORDS tweaks
+(8) The default connection pool settings in the ORDS configuration are too small.
+# vim /u01/ords/config/ords/conf/apex.xml
+-------------------------schnipp-------------------------
+<entry key="jdbc.InitialLimit">10</entry>
+<entry key="jdbc.MinLimit">10</entry>
+<entry key="jdbc.MaxLimit">60</entry>
+-------------------------schnipp-------------------------
+# systemctl restart tomcat
+
+##### SNAPSHOT 1 #####
+
+===============================================================================
+JASPER REPORTSERVER
+===============================================================================
+-- Anmerkung ORDS/Jasperserver: ORDS/Oracle läuft mit Tomcat auf Port 8080.
+-- Jasperserver (Standardinstallation) läuft mit eigenem Tomcat auf Port 8081.
+-- Ports müssen in Firewall freigeben sein: firewall-cmd --add-port=8081/tcp
+-- für Jasperserver.
+
+-- Installation und Konfiguration
+# chmod 755 TIB_js-jrs-cp_6.4.2_linux_x86_64.run
+# ./TIB_js-jrs-cp_6.4.2_linux_x86_64.run <-- Die Defaultwerte verwenden
+# cd /tmp
+# /opt/jasperreports-server-cp-6.4.2/ctlscript.sh start
+-- http://192.168.178.50:8081/jasperserver
+-- jasperadmin/jasperadmin
+
+# cd /usr/lib/firewalld/services/
+# cp postgresql.xml jasper.xml
+# vim jasper.xml
+------------------schnipp---------------------------------------
+<?xml version="1.0" encoding="utf-8"?>
+<service>
+  <short>Jasper</short>
+  <description>Jasper Reportsserver</description>
+  <port protocol="tcp" port="8081"/>
+</service>
+------------------schnipp---------------------------------------
+
+# firewall-cmd --reload
+
+--- Data Source hinzufügen
+Data Sources > Resource hinzufügen > Datenquelle
+Typ: JDBC-Datenquelle
+JDBC-Treiber: Oracle (oracle.jdbc.OracleDriver)
+-- Ggf. Treiber hinzufügen... > Datei auswählen > iMac > Library > JDBC > ojdbc7.jar > Hochladen
+Host: localhost
+Port: 1521
+Dienst: XE
+URL: jdbc:oracle:thin:@localhost:1521:XE
+Benutzername: sn/oracle
+
+-- Workspace SN (StecoNatura) erstellen
+-- Workspace FW (Ferienwohnung) erstellen
+
+-- Berechtigungen
+$ sqlplus / as sysdba
+SQL> grant execute on utl_inaddr to sn;
+SQL> grant execute on utl_inaddr to fw;
+SQL> grant execute on utl_http to sn;
+SQL> grant execute on utl_http to fw;
+
+-- ACL als SYS erstellen
+BEGIN
+    DBMS_NETWORK_ACL_ADMIN.CREATE_ACL (
+    acl => 'reportserver.xml',
+    description => 'Jasper Reportserver',
+    principal => 'SN',
+    is_grant =>  TRUE,
+    privilege => 'connect');
+END;
+/
+
+-- ACL dem HOST zuweisen
+BEGIN
+    dbms_network_acl_admin.assign_acl(
+    acl => 'reportserver.xml',
+    host => '*',
+    lower_port => 80,
+    upper_port => 8888);
+END;
+/
+
+-- ACL einem weiteren User zuordnen
+BEGIN
+    DBMS_NETWORK_ACL_ADMIN.ADD_PRIVILEGE (
+    acl => 'reportserver.xml',
+    principal => 'FW',
+    is_grant => TRUE,
+    privilege => 'connect');
+END;
+/
+
+===============================================================================
+JASPERSOFT STUDIO CE 6.5.1
+===============================================================================
+Repository Explorer
+
+(1) Data Adapter hinzufügen
+Data Adapters > Create Data Adapter > Database JDBC Connection
+	Name: 							sn@vb01 bzw. fw@vb01
+	JDBC Driver: 					oracle.jdbc.driver.OracleDriver
+	JDBC Url: 						jdbc:oracle:thin:@vb01:1521:xe
+	Username: 						sn bzw. fw
+	Password: 						xxxx
+
+(2) Server hinzufügen
+	Name: 							JasperReports Server
+	URL: 							http://vb01:8081/jasperserver
+	Acount
+	Organization: 					blank
+	User: 							jasperadmin
+	Password: 						jasperadmin
+	Advanced Settings:
+	Authentication: 				Password
+	JasperReports Libray Version: 	Same version as server
+	Workspace Folder: 				/SteccoNatura
+	Local: 							Deutsch(Deutschland)
+	Time Zone: 						Europe/Berlin
+
+
+===============================================================================
+EXPORT/IMPORT
+===============================================================================
+
+------------------------
+-- EXPDP/IMPDP einsetzen
+------------------------
+
+-- Als DBA Rechte für Directory DATA_PUMP_DIR vergeben
+$ rlwrap sqlplus / as sysdba
+SQL> grant read,write on directory DATA_PUMP_DIR to sn;
+-- Als Benutzer SN Liste der Directories mit Zugriffsrecht abrufen:
+$ rlwrap sqlplus sn/oracle
+SQL> select * from all_directories;
+-- DIRECTORY_NAME: DATA_PUMP_DIR, DIRECTORY_PATH: /u01/app/oracle/admin/XE/dpdump/
+
+-- Schema exportieren als User SYSTEM
+expdp system/oracle SCHEMAS=SN DIRECTORY=DATA_PUMP_DIR DUMPFILE=expdp_sn.dmp
+
+-- Exportfile vom Quellsystem (vb10) auf das Zielsystem (v2208gb) kopieren. Zugriffsrechte
+-- auf Zielrechner wie oben einstellen.
+
+-- Option 1: Import in ein Schema mit geänderten Namen
+-- Schema SN (Quellsystem) auf Schema DEVSN (Zielsystem) als User SYSTEM importieren:
+impdp system/oracle DIRECTORY=DATA_PUMP_DIR DUMPFILE=expdp_sn.dmp REMAP_SCHEMA=sn:devsn TRANSFORM=SEGMENT_ATTRIBUTES:n:table
+-- Option 2: Import in ein Schema mit identischen Namen
+-- Schema SN (Quellsystem) auf Schema SN (Zielsystem) als User SYSTEM importieren:
+impdp system/oracle DIRECTORY=DATA_PUMP_DIR DUMPFILE=expdp_sn.dmp REMAP_TABLESPACE=APEX_2896952212612135:APEX
+
+--------------------------------------
+-- Schema auf Quellsystem exportieren
+--------------------------------------
+➜  ~ ssh root@vb09
+# su - oracle
+$ exp userid=sn/sn buffer=102400 file=exp_sn.dmp owner=sn compress=N \
+    consistent=Y recordlength=65535
+--------------------------------------
+-- Exportfile auf Zielsystem kopieren
+--------------------------------------
+-- vom Zielsystem aus:
+➜  ~ sudo scp root@vb09:/u01/app/oracle/exp_sn.dmp .
+➜  ~ scp exp_sn.dmp root@192.168.178.50:/tmp
+-------------------------------------------------------------------------------
+-- Schema auf Zielsystem importieren. Ggf. Zugriff auf Tablespace USERS regeln
+-------------------------------------------------------------------------------
+➜  ~ ssh root@192.168.178.50
+# mv exp_sn.dmp /u01/app/oracle/
+# chown oracle.dba /tmp/exp_sn.dmp
+# su - oracle
+$ imp userid=system/oracle buffer=1024000 file=exp_sn.dmp fromuser=sn \
+    touser=sn recordlength=65535
